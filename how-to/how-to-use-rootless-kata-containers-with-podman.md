@@ -87,7 +87,22 @@ If running a KVM based hypervisor, add the user running the workload to the KVM 
 ```bash
 $ sudo usermod -a -G kvm $USER
 ```
-
+> **NOTE:**
+>
+> `kvm` should be the group owning the device node `/dev/kvm` on most distros.
+> Make sure permissions on `/dev/kvm` are as shown below:
+> ```
+> $ ls -la /dev/kvm
+> crw-rw---- 1 root kvm 10, 232 Nov 11 20:28 /dev/kvm
+> ```
+> If the group owner happens to be `root`, you may need to create a system group `kvm` and
+> change permissions for `/dev/kvm` as shown above.
+> ```
+> $ sudo addgroup --system kvm
+> $ sudo chown root:kvm /dev/kvm
+> $ sudo chmod g+rw /dev/kvm
+> ```
+ 
 ### Reboot
 
 Reboot the system for the changes to take effect (when you disable SELinux you
