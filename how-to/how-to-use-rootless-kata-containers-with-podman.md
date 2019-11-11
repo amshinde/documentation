@@ -44,16 +44,19 @@ user-space networking.
 Refer to the following table for the __minimum__ required software versions
 and the installation instructions:
 
-| Component       | Version | Install Instructions|
-| ----------------|:-------:|---------------------|
-| Podman          | WIP     | [see here](https://github.com/containers/libpod/blob/master/install.md)
-| `slirp4netns`   | 0.4.0   | [see here](https://github.com/rootless-containers/slirp4netns#quick-start)
-| Kata Containers | WIP     | [see here](https://github.com/kata-containers/documentation/blob/master/install/README.md)
+| Component       | Version       | Install Instructions|
+| ----------------|:-------------:|---------------------|
+| Podman          | 1.6.2         | [see here](https://github.com/containers/libpod/blob/master/install.md)
+| `slirp4netns`   | 0.4.0         | [see here](https://github.com/rootless-containers/slirp4netns#quick-start)
+| Kata Containers | 1.10.0-alpha1 | [see here](https://github.com/kata-containers/documentation/blob/master/install/README.md)
+
 
 > **NOTE:**
 >
 > If installing Podman with a package manager, there is usually no need to
 > install `slirp4netns` separately.
+> You will need to install Kata Containers from source today for rootless support.
+> Rootless support for Kata should be available and functional in upcoming 1.9.2 and 1.10.0-alpha1 releases.
 
 ## Configuration
 
