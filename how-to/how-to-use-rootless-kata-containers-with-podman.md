@@ -8,7 +8,7 @@
         * [Add user to KVM group](#add-user-to-kvm-group)
         * [Reboot](#reboot)
         * [Disable `vhost-net`](#disable-vhost-net)
-        * [Modify the Kata images permissions](#modify-the-kata-images-permissions)
+        * [Modify the Kata image permissions](#modify-the-kata-image-permissions)
         * [Set up Podman rootless configuration](#set-up-podman-rootless-configuration)
         * [Add Kata Runtime to Podman configuration file (optional)](#add-kata-runtime-to-podman-configuration-file-optional)
     * [Run Kata with rootless Podman](#run-kata-with-rootless-podman)
@@ -49,14 +49,16 @@ and the installation instructions:
 | Podman          | 1.6.2         | [see here](https://github.com/containers/libpod/blob/master/install.md)
 | `slirp4netns`   | 0.4.0         | [see here](https://github.com/rootless-containers/slirp4netns#quick-start)
 | Kata Containers | 1.10.0-alpha1 | [see here](https://github.com/kata-containers/documentation/blob/master/install/README.md)
+| Host  Kernel    | 4.14          | 
 
+Rootless support for Kata has been verified with `qemu` hypervisor.
+It is recommended to use qemu binary from Kata packages for running rootless containers.
 
 > **NOTE:**
 >
 > If installing Podman with a package manager, there is usually no need to
 > install `slirp4netns` separately.
-> You will need to install Kata Containers from source today for rootless support.
-> Rootless support for Kata should be available and functional in upcoming 1.9.2 and 1.10.0-alpha1 releases.
+> Rootless support for Kata is available in Kata 1.10.0-alpha1 release.
 
 ## Configuration
 
@@ -82,7 +84,7 @@ $ [ -f /etc/selinux/config ] && sudo sed -i 's/^SELINUX=.*/SELINUX=disabled/g' /
 
 ### Add user to KVM group
 
-If running a KVM based hypervisor, add the user running the workload to the KVM group:
+To enable rootless support, the user running the workload needs to be added to the `kvm` group.
 
 ```bash
 $ sudo usermod -a -G kvm $USER
@@ -90,7 +92,7 @@ $ sudo usermod -a -G kvm $USER
 > **NOTE:**
 >
 > `kvm` should be the group owning the device node `/dev/kvm` on most distros.
-> Make sure permissions on `/dev/kvm` are as shown below:
+> Make sure the minimum permissions on `/dev/kvm` are as shown below:
 > ```
 > $ ls -la /dev/kvm
 > crw-rw---- 1 root kvm 10, 232 Nov 11 20:28 /dev/kvm
@@ -126,11 +128,14 @@ Verify the configuration is correct:
 
 ### Setup Kata configuration files
 
+These next set of instructions are based on Kata Containers being installed from a package manager.
+If `kata-deploy` was used, then the binaries and configuration.toml files will be located at `/opt/kata/` 
+and the following instructions will have to be modified.
 If the Kata `configuration.toml` file does not exist in `/etc`, create it:
 
 ```bash
 $ sudo mkdir -p /etc/kata-containers/
-$ sudo install -D -o ${USER} -g root -m 0640 /usr/share/defaults/kata-containers/configuration.toml /etc/kata-containers/
+$ sudo install -D -m 0640 /usr/share/defaults/kata-containers/configuration.toml /etc/kata-containers/
 ```
 
 Or, if the file exists, but is not readable by the user:
@@ -141,6 +146,8 @@ $ sudo chown -R a+r /etc/kata-containers/
 
 ### Disable `vhost-net`
 
+This step will not be required in case you are using Kata based on the latest source.
+
 Disable `vhost-net` in the Kata configuration file, by commenting out the
 `disable_vhost_net` line:
 
@@ -148,16 +155,39 @@ Disable `vhost-net` in the Kata configuration file, by commenting out the
 $ sudo sed -i -e 's/^#disable_vhost_net = true/disable_vhost_net = true/' /etc/kata-containers/configuration.toml
 ```
 
-### Modify the Kata images permissions
+The above step is required in Kata version 1.10.0-alpha1. In future releases, this should
+no longer be required as Kata runtime should handle this automatically for rootless case.
+This does mean you will get slightly degraded network performance.
 
-The current user needs to have read and write permissions for the kata image, write permissions are required
-so that the image can be passed as an nvdimm device in case of qemu on x86.
-We do so by changing the group ownership of the image to `kvm` and and `rw` permissions for the `kvm` group. 
+### Modify the Kata image permissions
+
+Upstream qemu needs to have read and write permissions for the kata image in order to 
+use it as a nvdimm memory backend, even though in case of Kata, the image is used purely
+for a read-only operation. 
+Write access on the image should not be required for a read-only access. We have fixed this
+ in the qemu packages that we ship with Kata and plan on upstreaming this patch:
+https://github.com/kata-containers/packaging/blob/master/qemu/patches/4.1.x/0002-memory-backend-file-nvdimm-support-read-only-files-a.patch
+
+In case you are using a qemu binary provided by your distribution, it is recommended
+that you use an initrd instead of rootfs image file. The reason being, you will need to 
+add write permissions to the container image for the user running the workload, allowing 
+the user to modify the image. 
+
+If you still want to to use the rootfs image instead of initrd,
+ you can change the group ownership of the image by choosing a group and adding
+ `rw` permissions for that group. Choose a group where members of the group trust each 
+other, as giving write access to the group allows any member of the group to
+modify the image.
 
 ```bash
-$ sudo chown -R root:kvm /usr/share/kata-containers
-$ sudo chmod  -R g+rw /usr/share/kata-containers
+$ # Set $GROUP to a group that is trusted.
+$ img=$(readlink /usr/share/kata-containers/kata-containers.img)
+$ sudo chown -R root:$GROUP /usr/share/kata-containers/$img
+$ sudo chmod -R g+rw /usr/share/kata-containers/$img
 ```
+> **Warning:**
+>
+> You should understand the security implications of the above step before adding write permissions for the image.
 
 ### Set up Podman rootless configuration
 
@@ -172,10 +202,6 @@ that is not accessible by a user, so change to the rootless runtime directory.
 
 ```bash
 $ sed -i -e "s|^tmp_dir = .*$|tmp_dir = \"$XDG_RUNTIME_DIR/libpod/tmp\"|" ~/.config/containers/libpod.conf
-```
-> **NOTE:**
-> The assumption here is that the environment variable $XDG_RUNTIME_DIR has been set for the 
-> current user. This is set by systemd on login and should point to `/run/user/$(id -u)`.
 
 ### Add Kata Runtime to Podman configuration file (optional)
 
