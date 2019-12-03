@@ -150,11 +150,13 @@ $ sudo sed -i -e 's/^#disable_vhost_net = true/disable_vhost_net = true/' /etc/k
 
 ### Modify the Kata images permissions
 
-The Kata images needs to be accessible by the user, so change the permissions
-of the image directory to be readable by the user.
+The current user needs to have read and write permissions for the kata image, write permissions are required
+so that the image can be passed as an nvdimm device in case of qemu on x86.
+We do so by changing the group ownership of the image to `kvm` and and `rw` permissions for the `kvm` group. 
 
 ```bash
-$ sudo chown -R a+r /usr/share/kata-containers
+$ sudo chown -R root:kvm /usr/share/kata-containers
+$ sudo chmod  -R g+rw /usr/share/kata-containers
 ```
 
 ### Set up Podman rootless configuration
