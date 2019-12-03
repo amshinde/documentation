@@ -171,6 +171,9 @@ that is not accessible by a user, so change to the rootless runtime directory.
 ```bash
 $ sed -i -e "s|^tmp_dir = .*$|tmp_dir = \"$XDG_RUNTIME_DIR/libpod/tmp\"|" ~/.config/containers/libpod.conf
 ```
+> **NOTE:**
+> The assumption here is that the environment variable $XDG_RUNTIME_DIR has been set for the 
+> current user. This is set by systemd on login and should point to `/run/user/$(id -u)`.
 
 ### Add Kata Runtime to Podman configuration file (optional)
 
